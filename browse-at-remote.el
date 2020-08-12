@@ -115,10 +115,14 @@ By default is true."
   "Return (REMOTE-URL . REF) which contains FILENAME.
 Returns nil if no appropriate remote or ref can be found."
   (let ((local-branch (browse-at-remote--get-local-branch))
-        (revision (if (and (fboundp 'vc-git--symbolic-ref)
-                           browse-at-remote-prefer-symbolic)
-                      (vc-git--symbolic-ref (or filename "."))
-                    (vc-git-working-revision (or filename "."))))
+        (revision (if (and (fboundp 'vc-git--symbolic-ref) browse-at-remote-prefer-symbolic)
+                      (or
+                       (buffer-local-value 'magit-buffer-refname (current-buffer))
+                       (vc-git--symbolic-ref (or filename ".")))
+                    (or
+                     (buffer-local-value 'magit-buffer-revision (current-buffer))
+                     (vc-git-working-revision (or filename ".")))))
+
         remote-branch
         remote-name)
     ;; If we're on a branch, try to find a corresponding remote
@@ -439,6 +443,18 @@ Currently the same as for github."
    (buffer-file-name
     (let ((line (when browse-at-remote-add-line-number-if-no-region-selected (point))))
       (browse-at-remote--file-url (buffer-file-name) line)))
+
+   ;; Try to use magit variables as last resort
+   ((and (boundp 'magit-buffer-file-name) (use-region-p))
+    (let ((point-begin (min (region-beginning) (region-end)))
+          (point-end (max (region-beginning) (region-end))))
+      (browse-at-remote--file-url
+       magit-buffer-file-name point-begin
+       (if (eq (char-before point-end) ?\n) (- point-end 1) point-end))))
+
+   ((boundp 'magit-buffer-file-name)
+    (let ((line (when browse-at-remote-add-line-number-if-no-region-selected (point))))
+      (browse-at-remote--file-url magit-buffer-file-name line)))
 
    (t (error "Sorry, I'm not sure what to do with this."))))
 
